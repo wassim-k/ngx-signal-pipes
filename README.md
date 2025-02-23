@@ -1,6 +1,6 @@
 # NgxSignalPipes
 
-Transform Angular signals with pipes.
+Transform Angular signals with functional pipes.
 
 ## Installation
 
@@ -8,24 +8,111 @@ Transform Angular signals with pipes.
 npm install ngx-signal-pipes
 ```
 
-## Requirements
+## 🔧 Requirements
 * Angular >= 17.0.0
 * TypeScript >= 5.2.0
 
-## Size
-* < 2KB minified
+## ✨ Features
+* Purely written using Signals.
+* Depends only on `@angular/core`.
+* No dependency on `RxJS`.
+* < 2KB minified.
+
+## Motivation
+**NgxSignalPipes** was created to provide **clean**, **simple**, and **readable** solutions to common and repeatable signals patterns.
+
+### Examples
+
+#### 1. Skip first effect callback:
+
+This is common, as the first callback is usually with the initial signal values before the user interacts with the component.
+
+Without **NgxSignalPipes**:
+```typescript
+const input = signal('');
+
+const isFirst = true;
+
+effect(() => {
+  const value = input(); // Establish dependency.
+
+  if (isFirst) {
+    isFirst = false;
+    return;
+  }
+
+  console.log($`Input changed to: ${value}`);
+});
+```
+
+With **NgxSignalPipes**:
+```typescript
+const input = signal('');
+
+effectPipe(input)
+  .skip(1)
+  .run(value => console.log($`Input changed to: ${value}`));
+```
+
+#### 2. Debounce `computed` value
+
+This is common when working with APIs where user input needs to be debounced to avoid spamming the API:
+
+Without **NgxSignalPipes**:
+```typescript
+const input = signal('');
+
+const input$ = toObservable(input).pipe(
+  debounceTime(500)
+);
+
+const debouncedInput = toSignal(input$, {
+  initialValue: input()
+});
+```
+
+With **NgxSignalPipes**:
+```typescript
+const input = signal('');
+
+const debouncedInput = computedPipe(input).debounce(500);
+```
+
+### Comparison to RxJS
+While both libraries have a similar functional pipe-based API, they operate on fundamentally different primitives:
+* **Signals** are pull-based and always have a value.
+* **Observables** are push-based streams.
+
+**NgxSignalPipes** focuses on providing **simple** solutions to common signals patterns. While some functionality may overlap, the implementations are specifically optimised for Signals.
+
+Use **NgxSignalPipes** when working primarily with Signals and simple transformations.
+
+Use **RxJS** when dealing with complex async flows, event streams, error handling or when you need its rich operator ecosystem.
 
 ## Core Concepts
 
-NgxSignalPipes provides two main functions:
-- `effectPipe`: For handling side effects based on signal changes
-- `computedPipe`: For transforming signal values
+**NgxSignalPipes** provides two main functions built entirely on Angular's signals system:
+- `effectPipe`: For handling side effects based on signal changes.
+- `computedPipe`: For transforming signal values.
 
-## EffectPipe
+### Signals Reactivity Refresher
+Signals reactivity works in two phases:
+1. **Notifying Dependents Phase**
+
+   When a signal's value changes, it immediately marks all its dependents (such as computed signals, effects or component template) as "dirty".  
+   This notification means that any cached values are flagged for update, ensuring that dependent computations know they must refresh their value, but they are not re-evaluated immediately.
+
+2. **Lazy Evaluation Phase**
+
+   The value of dependents is lazily recalculated only when their value is actually accessed. This on-demand "pull" minimises unnecessary recomputation, enhancing performance by recalculating only when needed.
+
+This is crucial for understanding how the various pipes in this library work.
+
+## `effectPipe`
 
 ### Overview
 
-`effectPipe` handles side effects from signal changes through a chainable API.
+`effectPipe` handles side effects from signal changes.
 
 ### Basic Usage
 
@@ -36,6 +123,7 @@ import { effectPipe } from 'ngx-signal-pipes';
 const temperature = signal(20);
 
 effectPipe(temperature)
+  .skip(1)             // Skip initial value
   .filter(t => t > 30) // Only high temps
   .debounce(1000)      // Avoid spam
   .run(t => {
@@ -43,15 +131,31 @@ effectPipe(temperature)
   });
 ```
 
+### Under the Hood
+`effectPipe` is implemented using a single `effect` and a pipeline pattern, it roughly translates to this:
+
+```typescript
+effect(() => pipe1(pipe2(pipe3(run))));
+```
+
+Each pipe decides whether to call the next pipe and so on, until the `run` callback is invoked.
+
+### Timing
+`effect`s called from an Angular component run during the change detection stage of the component's lifecycle.
+
+`effect`s called from outside an Angular component or with `forceRoot` option run as a microtask.
+
+**NgxSignalPipes** operates on each one of those **effect runs**.
+
 ### Pipes
 
 #### filter
-Filters values based on a predicate:
+Conditionally run effect based on predicate.
 
 ```typescript
-const source = signal(0);
+const input = signal(0);
 
-effectPipe(source)
+effectPipe(input)
   .filter(x => x % 2 === 0)
   .run(value => {
     console.log('Even number:', value);
@@ -59,12 +163,12 @@ effectPipe(source)
 ```
 
 #### skip
-Skips the first N emissions:
+Skip the first N effect runs.
 
 ```typescript
-const source = signal(0);
+const input = signal(0);
 
-effectPipe(source)
+effectPipe(input)
   .skip(1)
   .run(value => {
     console.log('After initial value:', value);
@@ -72,22 +176,20 @@ effectPipe(source)
 ```
 
 #### take
-Takes only the first N emissions and then stops the effect:
+Run effect N times before destroying it.
 
 ```typescript
-const source = signal(0);
+const input = signal(0);
 
-effectPipe(source)
-  .take(3)
+effectPipe(input)
+  .take(1)
   .run(value => {
-    console.log('First three values:', value);
+    console.log('Initial value:', value);
   });
 ```
 
-Effect will automatically be destroyed after N emissions.
-
 #### debounce
-Delays emissions by the specified milliseconds:
+Delay effect run by the specified milliseconds.
 
 ```typescript
 const input = signal('');
@@ -101,7 +203,7 @@ effectPipe(input)
 
 ### Cleanup
 
-Effects can register clean-up functions:
+Effects can register cleanup functions similar to `effect`s:
 
 ```typescript
 const theme = signal('light');
@@ -115,11 +217,11 @@ effectPipe(theme).run((currentTheme, cleanup) => {
 });
 ```
 
-## ComputedPipe
+## `computedPipe`
 
 ### Overview
 
-`computedPipe` transforms signal values through a chainable API.
+`computedPipe` transforms computed signal values.
 
 ### Basic Usage
 
@@ -133,49 +235,70 @@ const normalisedInput = computedPipe(input)
   .skip(1)                    // Skip initial empty value
   .filter(v => v.length > 0)  // Ignore empty strings
   .debounce(500)              // Wait for typing to stop
-  .map(v => v.toLowerCase()); // Normalize case
+  .map(v => v.toLowerCase()); // Normalise case
 
 input.set('HELLO'); // After 500ms: "hello"
 ```
 
+### Under the Hood
+`computedPipe` is implemented by simply chaining multiple `computed` signals. It roughly translates to:
+
+```typescript
+const input =         signal(0);
+const intermediate1 = computed(pipe1(input));
+const intermediate2 = computed(pipe2(intermediate1));
+const output =        computed(pipe3(intermediate2));
+```
+
+Each pipe applies a transformation to the value which in turn is pulled by the next `computed` value and so on...
+
+### Timing
+`computed` value **computation** is performed when the value is accessed. Then the value is cached until the next time one of its dependencies changes.
+
+The timing of the **computation** depends on when the signal is accessed:
+* If the `computed` value is accessed from a component's template, then it will run as part of the component's rendering cycle.
+* If the `computed` value is accessed from an `effect`, then it follows the `effect` timing explained previously.
+
+**NgxSignalPipes** operates on each one of those value **computations**.
+
 ### Pipes
 
 #### map
-Transforms values using a mapping function:
+Map values using a mapping function.
 
 ```typescript
-const source = signal(1);
-const doubled = computedPipe(source).map(x => x * 2);
+const input = signal(1);
+const doubled = computedPipe(input).map(x => x * 2);
 ```
 
 #### filter
-Filters values based on a predicate, returns `SKIPPED` for non-matching values:
+Filter values based on a predicate.  
+If the initial value is filtered then `SKIPPED` is returned.
 
 ```typescript
-const source = signal(0);
-const evenOnly = computedPipe(source).filter(x => x % 2 === 0);
+const input = signal(0);
+const evenOnly = computedPipe(input).filter(x => x % 2 === 0);
 ```
 
 #### skip
-Skips the first N emissions, returning `SKIPPED` for skipped values:
+Returns `SKIPPED` for the first N computations, then passes through subsequent values as-is.
 
 ```typescript
-const source = signal(0);
-const skipFirst = computedPipe(source).skip(1);
+const input = signal(0);
+const skipFirst = computedPipe(input).skip(1);
 ```
 
 #### take
-Takes only the first N emissions and then stops updating:
+Returns value as-is for the first N computations, then retains the N-th value for all subsequent computations.  
+It also calls `destroy()` on the `computedPipe` to cleanup any internal effects.
 
 ```typescript
-const source = signal(0);
-const firstThree = computedPipe(source).take(3);
+const input = signal(0);
+const takeFirst = computedPipe(input).take(1);
 ```
 
-After 3 emissions, the signal will retain its last value and automatically clean up any internal effects.
-
 #### debounce
-Delays emissions by the specified milliseconds:
+Delay value computation by the specified milliseconds.
 
 ```typescript
 const input = signal('');
@@ -185,15 +308,18 @@ input.set('a'); // Will emit after 500ms
 input.set('ab'); // Resets the 500ms timer
 ```
 
-Due to the synchronous nature of signals, using `debounce` with `computedPipe` will always emit the initial signal value instantly, then debounce any future value changes.
+Signals always have a value, using `debounce` with `computedPipe` returns the initial signal value instantly, then debounces future value changes.
 
-`debounce` uses an `effect` internally, hence the need for an injection context. The internal `effect` is automatically cleaned-up when the component is destroyed, but it can be done manually by calling `computedPipeSignal.destroy()`.
+`debounce` uses an `effect` internally. The internal `effect` is automatically cleaned-up when the component is destroyed, but it can be done manually by calling `computedPipeSignal.destroy()`.
 
-### Initial values and SKIPPED symbol
+### SKIPPED symbol
+Since signals always have a value, if a computation results in a skipped value, then a special `SKIPPED` symbol is returned instead.
 
-#### Understanding Signal Behaviour
+`SKIPPED` only applies to the **initial value** of a **`computedPipe`**. All subsequent skipped computations simply return the last known value, which in turn does not notify dependents of a value change, essentially, skipping that computation.
 
-Signals in Angular are synchronous in nature and always have a value. This means that computed signals will immediately produce a value upon initialisation, which can lead to unintended behaviour in some scenarios:
+#### Working with SKIPPED symbol
+
+In this example, we'd like to `debounce` search parameters that are entered by the user before making an API call:
 
 ```typescript
 @Component({
@@ -210,17 +336,15 @@ export class EmployeesComponent {
     request: computedPipe(this.firstName, this.lastName).debounce(500),
     loader: params => {
       const [firstName, lastName] = params.request;
-      return this.employeeApiService.getEmployees({ firstName, lastName });
+      return this.employeeApiService.searchEmployees({ firstName, lastName });
     }
   });
 }
 ```
 
-In this example, because signals must have an initial value, the resource will immediately make an API call with empty strings.
+In this example, because signals always have a value, the resource will immediately make an API call with empty strings.
 
-#### Using SKIPPED to Prevent Initial Requests
-
-To avoid this, use `skip(1)` and handle the `SKIPPED` symbol:
+To avoid this, you can use `skip(1)` and handle the `SKIPPED` symbol:
 
 ```typescript
 @Component({
@@ -239,16 +363,14 @@ export class EmployeesComponent {
       .debounce(500),
     loader: params => {
       if (params.request === SKIPPED) {
-        return EMPTY; // Prevent HTTP request
+        return EMPTY; // Prevent initial HTTP request
       }
       const [firstName, lastName] = params.request;
-      return this.employeeApiService.getEmployees({ firstName, lastName });
+      return this.employeeApiService.searchEmployees({ firstName, lastName });
     }
   });
 }
 ```
-
-`SKIPPED` is only produced for initial values, all subsequent skipped values are simply not emitted by the signal.
 
 ## Working with Multiple Signals
 
@@ -296,6 +418,14 @@ export class MyComponent implements OnInit {
 }
 ```
 
-## License
+## 🤝 Contributing
 
-MIT License - see LICENSE.md for details
+Contributions are welcome! You can start by [forking the repository](https://github.com/wassim-k/ngx-signal-pipes/fork).
+
+## 🐛 Issues
+
+If you encounter any bugs, have a feature request, or a use case for a new pipe, please [open an issue](https://github.com/wassim-k/ngx-signal-pipes/issues).
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/wassim-k/ngx-signal-pipes/blob/main/LICENSE) file for details.
