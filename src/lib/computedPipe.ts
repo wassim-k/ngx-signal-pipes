@@ -8,12 +8,44 @@ export interface ComputedPipeOptions<T> extends CreateComputedOptions<T> {
 }
 
 export type ComputedPipeSignal<T> = Signal<T> & {
+  /**
+   * Filter values based on a predicate.
+   *
+   * If the initial value is filtered then `SKIPPED` is returned.
+   */
   filter(predicate: (value: ExcludeSkipped<T>) => boolean): ComputedPipeSignal<T | typeof SKIPPED>;
+
+  /**
+   * Delay value computation by the specified milliseconds.
+   *
+   * Returns the initial signal value instantly, then debounces future value changes.
+   */
   debounce(delay: number): ComputedPipeSignal<T>;
+
+  /**
+   * Returns `SKIPPED` for the first N computations, then passes through subsequent values as-is.
+   */
   skip(n: number): ComputedPipeSignal<T | typeof SKIPPED>;
+
+  /**
+   * Returns value as-is for the first N computations, then retains the N-th value for all subsequent computations.
+   */
   take(n: number): ComputedPipeSignal<T>;
+
+  /**
+   * Map values using a mapping function.
+   */
   map<R>(fn: (value: ExcludeSkipped<T>) => R): ComputedPipeSignal<R | Extract<T, typeof SKIPPED>>;
+  /**
+ * Map values using a mapping function.
+ *
+ * @param defaultValue The value to return if the initial value is `SKIPPED`
+   */
   map<R, D>(fn: (value: ExcludeSkipped<T>) => R, defaultValue: D): ComputedPipeSignal<R | D>;
+
+  /**
+   * Cleanup any internal effects used by the pipe chain.
+   */
   destroy(): void;
 };
 

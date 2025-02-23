@@ -1,7 +1,7 @@
 {
   "name": "ngx-signal-pipes",
-  "version": "0.1.0",
-  "description": "Transform Angular signals with pipes.",
+  "version": "0.1.1",
+  "description": "Transform Angular signals with functional pipes.",
   "license": "MIT",
   "sideEffects": false,
   "repository": {

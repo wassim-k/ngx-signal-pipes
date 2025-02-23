@@ -20,6 +20,9 @@ export class EffectPipeBuilder<T> {
 
   public constructor(private readonly source: Signal<T>) { }
 
+  /**
+   * Delay effect run by the specified milliseconds.
+   */
   public debounce(delay: number): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -41,6 +44,9 @@ export class EffectPipeBuilder<T> {
     return this;
   }
 
+  /**
+   * Conditionally run effect based on predicate.
+   */
   public filter(predicate: (value: T) => boolean): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       const filter = createFilterPipe(predicate);
@@ -55,6 +61,9 @@ export class EffectPipeBuilder<T> {
     return this;
   }
 
+  /**
+   * Skip the first N effect runs.
+   */
   public skip(n: number): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       const skip = createSkipPipe<T>(n);
@@ -69,6 +78,9 @@ export class EffectPipeBuilder<T> {
     return this;
   }
 
+  /**
+   * Run effect N times before destroying it.
+   */
   public take(n: number): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       const take = createTakePipe<T>(n);
@@ -85,6 +97,9 @@ export class EffectPipeBuilder<T> {
     return this;
   }
 
+  /**
+   * Run the effect with the configured pipes.
+   */
   public run(fn: EffectPipeFn<T>, options?: CreateEffectOptions): EffectRef {
     const pipeline = [excludeSkipped<T>].concat(this.pipes).reduceRight((next, pipe) => pipe(next), fn);
 
