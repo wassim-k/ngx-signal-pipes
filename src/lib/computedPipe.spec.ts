@@ -222,6 +222,36 @@ describe('computedPipe', () => {
     });
   }));
 
+  it('should replace SKIPPED with the provided default value using default(defaultValue)', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal<number>(0);
+      const cp = computedPipe(source).skip(1).default(42);
+
+      // Initially the source is SKIPPED, so default returns provided value.
+      expect(cp()).toBe(42);
+
+      // When source emits a valid value, it propagates.
+      source.set(10);
+      flushMicrotasks();
+      expect(cp()).toBe(10);
+    });
+  }));
+
+  it('should replace SKIPPED with undefined using default() overload without arguments', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal<number>(0);
+      const cp = computedPipe(source).skip(1).default();
+
+      // With no default provided, SKIPPED is replaced by undefined.
+      expect(cp()).toBeUndefined();
+
+      // When source emits a valid value, it propagates.
+      source.set(5);
+      flushMicrotasks();
+      expect(cp()).toBe(5);
+    });
+  }));
+
   it('should work in a chain with other pipes', fakeAsync(() => {
     runInInjectionContext(injector, () => {
       const source = signal(2);

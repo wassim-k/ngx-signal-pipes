@@ -2,8 +2,14 @@ import { CreateEffectOptions, effect, EffectCleanupRegisterFn, EffectRef, Signal
 import { createFilterPipe, createSkipPipe, createTakePipe } from './pipes';
 import { ExcludeSkipped, SignalValues, SKIPPED } from './types';
 
+export type EffectPipeFn<T = any> = (values: T, ctx: EffectPipeContext) => void;
+
+export interface EffectPipeContext {
+  onCleanup: EffectCleanupRegisterFn;
+  effectRef: EffectRef;
+}
+
 type EffectPipe<T = any> = (next: EffectPipeFn<T>) => EffectPipeFn<T>;
-type EffectPipeFn<T = any> = (values: T, onCleanup: EffectCleanupRegisterFn, ref: EffectRef) => void;
 
 export function effectPipe<T>(signal: Signal<T>): EffectPipeBuilder<ExcludeSkipped<T>>;
 export function effectPipe<Signals extends Array<Signal<any>>>(...signals: Signals): EffectPipeBuilder<SignalValues<Signals>>;
@@ -26,13 +32,13 @@ export class EffectPipeBuilder<T> {
   public debounce(delay: number): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       let timer: ReturnType<typeof setTimeout> | null = null;
-      return (value, onCleanup, ref) => {
+      return (value, ctx) => {
         timer = setTimeout(() => {
-          next(value, onCleanup, ref);
+          next(value, ctx);
           timer = null;
         }, delay);
 
-        onCleanup(() => {
+        ctx.onCleanup(() => {
           if (timer !== null) {
             clearTimeout(timer);
             timer = null;
@@ -50,10 +56,10 @@ export class EffectPipeBuilder<T> {
   public filter(predicate: (value: T) => boolean): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       const filter = createFilterPipe(predicate);
-      return (value, onCleanup, ref) => {
+      return (value, ctx) => {
         const result = filter(value);
         if (result !== SKIPPED) {
-          next(value, onCleanup, ref);
+          next(value, ctx);
         }
       }
     });
@@ -67,10 +73,10 @@ export class EffectPipeBuilder<T> {
   public skip(n: number): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       const skip = createSkipPipe<T>(n);
-      return (value, onCleanup, ref) => {
+      return (value, ctx) => {
         const result = skip(value);
         if (result !== SKIPPED) {
-          next(value, onCleanup, ref);
+          next(value, ctx);
         }
       }
     });
@@ -84,12 +90,12 @@ export class EffectPipeBuilder<T> {
   public take(n: number): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       const take = createTakePipe<T>(n);
-      return (value, onCleanup, ref) => {
+      return (value, ctx) => {
         const result = take(value);
         if (result !== SKIPPED) {
-          next(value, onCleanup, ref);
+          next(value, ctx);
         } else {
-          ref.destroy();
+          ctx.effectRef.destroy();
         }
       }
     });
@@ -103,18 +109,18 @@ export class EffectPipeBuilder<T> {
   public run(fn: EffectPipeFn<T>, options?: CreateEffectOptions): EffectRef {
     const pipeline = [excludeSkipped<T>].concat(this.pipes).reduceRight((next, pipe) => pipe(next), fn);
 
-    const ref = effect(
-      onCleanup => pipeline(this.source(), onCleanup, ref),
+    const effectRef = effect(
+      onCleanup => pipeline(this.source(), { onCleanup, effectRef }),
       options
     );
 
-    return ref;
+    return effectRef;
   }
 }
 
 function excludeSkipped<T>(next: EffectPipeFn<T>): EffectPipeFn<T> {
-  return (value, onCleanup, ref) => {
+  return (value, ctx) => {
     if (value === SKIPPED) return;
-    next(value, onCleanup, ref);
+    next(value, ctx);
   };
 }

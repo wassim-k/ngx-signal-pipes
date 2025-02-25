@@ -37,11 +37,17 @@ export type ComputedPipeSignal<T> = Signal<T> & {
    */
   map<R>(fn: (value: ExcludeSkipped<T>) => R): ComputedPipeSignal<R | Extract<T, typeof SKIPPED>>;
   /**
- * Map values using a mapping function.
- *
- * @param defaultValue The value to return if the initial value is `SKIPPED`
+   * Map values using a mapping function.
+   *
+   * @param defaultValue The value to return if the initial value is `SKIPPED`
    */
   map<R, D>(fn: (value: ExcludeSkipped<T>) => R, defaultValue: D): ComputedPipeSignal<R | D>;
+
+  /**
+   * Replace `SKIPPED` with the specified default value.
+   * @param [defaultValue] The value to return if the initial value is `SKIPPED`, defaults to `undefined`.
+   */
+  default<D = undefined>(defaultValue?: D): ComputedPipeSignal<ExcludeSkipped<T> | D>;
 
   /**
    * Cleanup any internal effects used by the pipe chain.
@@ -135,6 +141,13 @@ function createComputedPipeSignal<T>(
           }
 
           return (lastValue = fn(value as ExcludeSkipped<T>));
+        }, options);
+        return createComputedPipeSignal(output, options, effectRefs);
+      },
+      default<D = undefined>(defaultValue?: D) {
+        const output = computed(() => {
+          const value = source();
+          return (value === SKIPPED ? defaultValue : value) as ExcludeSkipped<T> | D;
         }, options);
         return createComputedPipeSignal(output, options, effectRefs);
       },

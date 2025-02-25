@@ -201,21 +201,34 @@ effectPipe(input)
   });
 ```
 
-### Cleanup
-
-Effects can register cleanup functions similar to `effect`s:
+#### run
+Executes the effect with the configured pipeline.
 
 ```typescript
-const theme = signal('light');
+const input = signal('');
 
-effectPipe(theme).run((currentTheme, cleanup) => {
-  document.body.classList.add(`theme-${currentTheme}`);
-  
-  cleanup(() => {
-    document.body.classList.remove(`theme-${currentTheme}`);
-  });
-});
+const effectRef = effectPipe(input)
+  .filter(value => value.length > 0)
+  .run(
+    (value, { onCleanup, effectRef }: EffectPipeContext) => {
+      // Register cleanup logic if needed
+      onCleanup(() => {
+        console.log('Cleaning up after:', value);
+      });
+    },
+    { injector }
+  );
 ```
+
+Parameters:
+- `fn`: Callback function that receives:
+  - `value`: The current value(s) from the source signal(s)
+  - `context`: An object with:
+    - `onCleanup`: Function to register cleanup handlers
+    - `effectRef`: Reference to the effect instance
+- `options`: [`CreateEffectOptions`](https://angular.dev/api/core/CreateEffectOptions)
+
+Returns an `EffectRef` that can be used to destroy the effect manually.
 
 ## `computedPipe`
 
@@ -312,6 +325,16 @@ Signals always have a value, using `debounce` with `computedPipe` returns the in
 
 `debounce` uses an `effect` internally. The internal `effect` is automatically cleaned-up when the component is destroyed, but it can be done manually by calling `computedPipeSignal.destroy()`.
 
+#### default
+Replace `SKIPPED` with the specified default value.
+
+```typescript
+const input = signal('');
+const skipWithDefault = computedPipe(input)
+  .skip(1)            // This will produce SKIPPED initially
+  .default('None');   // Replace SKIPPED with 'None'
+```
+
 ### SKIPPED symbol
 Since signals always have a value, if a computation results in a skipped value, then a special `SKIPPED` symbol is returned instead.
 
@@ -365,6 +388,33 @@ export class EmployeesComponent {
       if (params.request === SKIPPED) {
         return EMPTY; // Prevent initial HTTP request
       }
+      const [firstName, lastName] = params.request;
+      return this.employeeApiService.searchEmployees({ firstName, lastName });
+    }
+  });
+}
+```
+
+Or you can use the `default` pipe:
+
+```typescript
+@Component({
+  /* ... */
+})
+export class EmployeesComponent {
+  private readonly employeeApiService = inject(EmployeeApiService);
+ 
+  public readonly firstName = input<string>('');
+  public readonly lastName = input<string>('');
+
+  // ✅ No API call until user interaction
+  protected readonly employeesResource = rxResource({
+    request: computedPipe(this.firstName, this.lastName)
+      .skip(1) // <= Skip initial value
+      .debounce(500)
+      .default(), // <= Replace SKIPPED with `undefined`
+    loader: params => {
+      // rxResource does not invoke the loader function when request is `undefined`
       const [firstName, lastName] = params.request;
       return this.employeeApiService.searchEmployees({ firstName, lastName });
     }
