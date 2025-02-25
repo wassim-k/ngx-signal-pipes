@@ -192,7 +192,7 @@ describe('effectPipe', () => {
       const source = signal(1);
       const cleanupFn = jest.fn();
 
-      const effectRef = effectPipe(source).run((value, onCleanup) => {
+      const effectRef = effectPipe(source).run((value, { onCleanup }) => {
         onCleanup(cleanupFn);
       });
 
