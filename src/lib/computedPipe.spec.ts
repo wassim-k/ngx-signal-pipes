@@ -222,6 +222,18 @@ describe('computedPipe', () => {
     });
   }));
 
+  it('should narrow types using filter correctly', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal<number | string>(1);
+
+      const cp = computedPipe(source)
+        .filter((value): value is number => typeof value === 'number')
+        .default(0);
+
+      expect(cp() + 1).toBe(2);
+    });
+  }));
+
   it('should replace SKIPPED with the provided default value using default(defaultValue)', fakeAsync(() => {
     runInInjectionContext(injector, () => {
       const source = signal<number>(0);

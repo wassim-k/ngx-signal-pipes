@@ -156,6 +156,20 @@ describe('effectPipe', () => {
     });
   }));
 
+  it('should narrow types using filter correctly', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal<number | string>(1);
+      const mockFn = jest.fn();
+
+      effectPipe(source)
+        .filter((value): value is number => typeof value === 'number')
+        .run(n => mockFn(n + 1));
+
+      flush();
+      expect(mockFn).toHaveBeenCalledWith(2);
+    });
+  }));
+
   it('should work in a chain with other effect pipes', fakeAsync(() => {
     runInInjectionContext(injector, () => {
       const source = signal(5);

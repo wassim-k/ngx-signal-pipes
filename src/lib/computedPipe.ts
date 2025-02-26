@@ -13,6 +13,7 @@ export type ComputedPipeSignal<T> = Signal<T> & {
    *
    * If the initial value is filtered then `SKIPPED` is returned.
    */
+  filter<S extends ExcludeSkipped<T>>(predicate: (value: ExcludeSkipped<T>) => value is S): ComputedPipeSignal<S | typeof SKIPPED>;
   filter(predicate: (value: ExcludeSkipped<T>) => boolean): ComputedPipeSignal<T | typeof SKIPPED>;
 
   /**

@@ -53,6 +53,8 @@ export class EffectPipeBuilder<T> {
   /**
    * Conditionally run effect based on predicate.
    */
+  public filter<S extends T>(predicate: (value: T) => value is S): EffectPipeBuilder<S>;
+  public filter(predicate: (value: T) => boolean): EffectPipeBuilder<T>;
   public filter(predicate: (value: T) => boolean): EffectPipeBuilder<T> {
     this.pipes.push(next => {
       const filter = createFilterPipe(predicate);
