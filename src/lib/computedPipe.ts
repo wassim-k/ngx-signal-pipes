@@ -1,13 +1,14 @@
 import { computed, CreateComputedOptions, EffectRef, Injector, signal, Signal } from '@angular/core';
 import { effectPipe } from './effectPipe';
 import { createFilterPipe, createSkipPipe, createTakePipe } from './pipes';
-import { ExcludeSkipped, SignalValues, SKIPPED } from './types';
+import { ExcludeSkipped, SignalLike, SignalValues, SKIPPED } from './types';
 
-export interface ComputedPipeOptions<T> extends CreateComputedOptions<T> {
+export interface ComputedPipeOptions {
   injector?: Injector;
+  debugName?: string;
 }
 
-export type ComputedPipeSignal<T> = Signal<T> & {
+export type ComputedPipeSignal<T> = SignalLike<T> & {
   /**
    * Filter values based on a predicate.
    *
@@ -37,16 +38,13 @@ export type ComputedPipeSignal<T> = Signal<T> & {
    * Map values using a mapping function.
    */
   map<R>(fn: (value: ExcludeSkipped<T>) => R): ComputedPipeSignal<R | Extract<T, typeof SKIPPED>>;
-  /**
-   * Map values using a mapping function.
-   *
-   * @param defaultValue The value to return if the initial value is `SKIPPED`
-   */
-  map<R, D>(fn: (value: ExcludeSkipped<T>) => R, defaultValue: D): ComputedPipeSignal<R | D>;
 
   /**
    * Replace `SKIPPED` with the specified default value.
-   * @param [defaultValue] The value to return if the initial value is `SKIPPED`, defaults to `undefined`.
+   *
+   * Generally, `default` should be the last pipe in the chain to allow for `SKIPPED` to propagate through the previous pipes.
+   *
+   * @param [defaultValue] The value to return instead of `SKIPPED`, defaults to `undefined`.
    */
   default<D = undefined>(defaultValue?: D): ComputedPipeSignal<ExcludeSkipped<T> | D>;
 
@@ -56,12 +54,12 @@ export type ComputedPipeSignal<T> = Signal<T> & {
   destroy(): void;
 };
 
-export function computedPipe<T>(signal: Signal<T>): ComputedPipeSignal<T>;
-export function computedPipe<T>(signal: Signal<T>, options: ComputedPipeOptions<T>): ComputedPipeSignal<T>;
-export function computedPipe<Signals extends Array<Signal<any>>>(...signals: Signals): ComputedPipeSignal<SignalValues<Signals>>;
-export function computedPipe<Signals extends Array<Signal<any>>>(...args: [...signals: Signals, options: ComputedPipeOptions<SignalValues<Signals>>]): ComputedPipeSignal<SignalValues<Signals>>;
+export function computedPipe<T>(signal: SignalLike<T>): ComputedPipeSignal<T>;
+export function computedPipe<T>(signal: SignalLike<T>, options: ComputedPipeOptions): ComputedPipeSignal<T>;
+export function computedPipe<Signals extends Array<SignalLike>>(...signals: Signals): ComputedPipeSignal<SignalValues<Signals>>;
+export function computedPipe<Signals extends Array<SignalLike>>(...args: [...signals: Signals, options: ComputedPipeOptions]): ComputedPipeSignal<SignalValues<Signals>>;
 export function computedPipe(...args: Array<any>): ComputedPipeSignal<any> {
-  let options: ComputedPipeOptions<any> | undefined;
+  let options: ComputedPipeOptions | undefined;
   let signals: Array<Signal<any>> = args;
 
   if (args.length > 1 && typeof args[args.length - 1] !== 'function') {
@@ -70,12 +68,12 @@ export function computedPipe(...args: Array<any>): ComputedPipeSignal<any> {
   }
 
   const source = signals.length === 1 ? signals[0] : () => signals.map(s => s());
-  return createComputedPipeSignal(source as Signal<any>, options, []);
+  return createComputedPipeSignal(source, options, []);
 }
 
 function createComputedPipeSignal<T>(
-  source: Signal<T>,
-  options: ComputedPipeOptions<any> | undefined,
+  source: SignalLike<T>,
+  options: ComputedPipeOptions | undefined,
   effectRefs: Array<EffectRef>
 ): ComputedPipeSignal<T> {
   return Object.assign(
@@ -90,59 +88,28 @@ function createComputedPipeSignal<T>(
       },
       filter(predicate: (value: ExcludeSkipped<T>) => boolean) {
         const filter = createFilterPipe(predicate);
-        let lastValue: T | typeof SKIPPED = SKIPPED;
-        const output = computed(() => {
-          const value = source();
-          if (value === SKIPPED) return lastValue;
-          return filter(value as ExcludeSkipped<T>) === SKIPPED
-            ? lastValue
-            : (lastValue = value);
-        }, options);
+        const output = computedWithLastValue(source, value => filter(value as ExcludeSkipped<T>) === SKIPPED ? SKIPPED : value, options);
         return createComputedPipeSignal(output, options, effectRefs);
       },
       skip(n: number) {
         const skip = createSkipPipe<T>(n);
-        let lastValue: T | typeof SKIPPED = SKIPPED;
-        const output = computed(() => {
-          const value = source();
-          if (value === SKIPPED) return lastValue;
-          return skip(value) === SKIPPED
-            ? lastValue
-            : (lastValue = value);
-        }, options);
+        const output = computedWithLastValue(source, value => skip(value) === SKIPPED ? SKIPPED : value, options);
         return createComputedPipeSignal(output, options, effectRefs);
       },
       take(n: number) {
         const take = createTakePipe<T>(n);
-        let lastValue: T | typeof SKIPPED = SKIPPED;
-        const output = computed(() => {
-          const value = source();
-          if (value === SKIPPED) return lastValue as T;
+        const output = computedWithLastValue(source, value => {
           if (take(value) === SKIPPED) {
             this.destroy();
-            return lastValue as T;
+            return SKIPPED;
           } else {
-            return (lastValue = value);
+            return value;
           }
-        }, options);
+        }, options) as Signal<T>;
         return createComputedPipeSignal(output, options, effectRefs);
       },
-      map<R, D>(...args: [fn: (value: ExcludeSkipped<T>) => R, defaultValue?: D]) {
-        const [fn, defaultValue] = args;
-        let lastValue: R | typeof SKIPPED = SKIPPED;
-        const output = computed(() => {
-          const value = source();
-
-          if (value === SKIPPED) {
-            if (lastValue !== SKIPPED) {
-              return lastValue;
-            } else {
-              return args.length === 1 ? SKIPPED : defaultValue;
-            }
-          }
-
-          return (lastValue = fn(value as ExcludeSkipped<T>));
-        }, options);
+      map<R>(fn: (value: ExcludeSkipped<T>) => R) {
+        const output = computedWithLastValue(source, value => fn(value as ExcludeSkipped<T>), options) as Signal<R | Extract<T, typeof SKIPPED>>;
         return createComputedPipeSignal(output, options, effectRefs);
       },
       default<D = undefined>(defaultValue?: D) {
@@ -159,4 +126,16 @@ function createComputedPipeSignal<T>(
       }
     }
   );
+}
+
+function computedWithLastValue<T, R>(source: SignalLike<T>, fn: (value: T) => R, options: ComputedPipeOptions | undefined) {
+  let lastValue: R | typeof SKIPPED = SKIPPED;
+  return computed(() => {
+    const value = source();
+    if (value === SKIPPED) return lastValue;
+    const newValue = fn(value);
+    return newValue === SKIPPED
+      ? lastValue
+      : (lastValue = newValue);
+  }, options);
 }

@@ -1,9 +1,9 @@
-import { Signal } from '@angular/core';
-
 export const SKIPPED = Symbol('NGX_SIGNAL_PIPES_SKIPPED');
 
 export type ExcludeSkipped<T> = Exclude<T, typeof SKIPPED>;
 
-export type SignalValues<S extends Array<Signal<any>>> = {
-  [K in keyof S]: S[K] extends Signal<infer U> ? U : never;
+export type SignalLike<T = any> = () => T;
+
+export type SignalValues<S extends Array<SignalLike>> = {
+  [K in keyof S]: S[K] extends () => infer U ? U : never;
 };

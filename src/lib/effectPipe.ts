@@ -1,6 +1,6 @@
 import { CreateEffectOptions, effect, EffectCleanupRegisterFn, EffectRef, Signal } from '@angular/core';
 import { createFilterPipe, createSkipPipe, createTakePipe } from './pipes';
-import { ExcludeSkipped, SignalValues, SKIPPED } from './types';
+import { ExcludeSkipped, SignalLike, SignalValues, SKIPPED } from './types';
 
 export type EffectPipeFn<T = any> = (values: T, ctx: EffectPipeContext) => void;
 
@@ -11,20 +11,17 @@ export interface EffectPipeContext {
 
 type EffectPipe<T = any> = (next: EffectPipeFn<T>) => EffectPipeFn<T>;
 
-export function effectPipe<T>(signal: Signal<T>): EffectPipeBuilder<ExcludeSkipped<T>>;
-export function effectPipe<Signals extends Array<Signal<any>>>(...signals: Signals): EffectPipeBuilder<SignalValues<Signals>>;
-export function effectPipe(...signals: Array<Signal<any>>): any {
-  const source = signals.length === 1
-    ? signals[0]
-    : () => signals.map((s: Signal<any>) => s());
-
-  return new EffectPipeBuilder(source as Signal<any>);
+export function effectPipe<T>(signal: SignalLike<T>): EffectPipeBuilder<ExcludeSkipped<T>>;
+export function effectPipe<Signals extends Array<SignalLike>>(...signals: Signals): EffectPipeBuilder<SignalValues<Signals>>;
+export function effectPipe(...signals: Array<SignalLike>): any {
+  const source = signals.length === 1 ? signals[0] : () => signals.map(s => s());
+  return new EffectPipeBuilder(source);
 }
 
 export class EffectPipeBuilder<T> {
   private readonly pipes: Array<EffectPipe<T>> = [];
 
-  public constructor(private readonly source: Signal<T>) { }
+  public constructor(private readonly source: SignalLike<T>) { }
 
   /**
    * Delay effect run by the specified milliseconds.

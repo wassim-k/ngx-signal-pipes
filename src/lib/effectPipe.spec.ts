@@ -87,23 +87,24 @@ describe('effectPipe', () => {
     runInInjectionContext(injector, () => {
       const a = signal(1);
       const b = signal(2);
-      const mockFn = jest.fn();
+      const directSignalsMock = jest.fn();
+      const derivedSignalMock = jest.fn();
 
-      effectPipe(a, b).run((values: [number, number]) => {
-        mockFn(values);
-      });
+      effectPipe(a, b).run((values: [number, number]) => directSignalsMock(values));
+      effectPipe(() => [a(), b()] as const).run((values: readonly [number, number]) => derivedSignalMock(values));
 
-      // Initially, the aggregated value is [1, 2].
-      flush();
-      expect(mockFn).toHaveBeenCalledWith([1, 2]);
+      const testCases = [
+        { description: 'Initial values', update: () => {}, expected: [1, 2] },
+        { description: 'After updating a', update: () => a.set(3), expected: [3, 2] },
+        { description: 'After updating b', update: () => b.set(4), expected: [3, 4] }
+      ];
 
-      a.set(3);
-      flush();
-      expect(mockFn).toHaveBeenCalledWith([3, 2]);
-
-      b.set(4);
-      flush();
-      expect(mockFn).toHaveBeenCalledWith([3, 4]);
+      for (const { update, expected } of testCases) {
+        update();
+        flush();
+        expect(directSignalsMock).toHaveBeenCalledWith(expected);
+        expect(derivedSignalMock).toHaveBeenCalledWith(expected);
+      }
     });
   }));
 

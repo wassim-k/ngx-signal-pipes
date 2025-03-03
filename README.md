@@ -430,10 +430,19 @@ Both `computedPipe` and `effectPipe` support multiple input signals:
 const name = signal('John');
 const age = signal(30);
 
+// computedPipe
 computedPipe(name, age)
   .map(([n, a]) => `${n} is ${a} years old`);
 
+computedPipe(() => [name(), age()])
+  .map(([n, a]) => `${n} is ${a} years old`);
+
+// effectPipe
 effectPipe(name, age).run(([n, a]) => {
+  console.log(`Update: ${n} is now ${a}`);
+});
+
+effectPipe(() => [name(), age()]).run(([n, a]) => {
   console.log(`Update: ${n} is now ${a}`);
 });
 ```

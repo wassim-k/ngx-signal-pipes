@@ -36,20 +36,6 @@ describe('computedPipe', () => {
     });
   }));
 
-  it('should support .map with default value', fakeAsync(() => {
-    runInInjectionContext(injector, () => {
-      const source = signal<number | typeof SKIPPED>(SKIPPED);
-      const output = computedPipe(source).map(value => value * 2, 0);
-      expect(output()).toBe(0);
-
-      source.set(2);
-      expect(output()).toBe(4);
-
-      source.set(SKIPPED);
-      expect(output()).toBe(4);
-    });
-  }));
-
   it('should support .skip to ignore the first emission', fakeAsync(() => {
     runInInjectionContext(injector, () => {
       const source = signal(10);
@@ -127,13 +113,17 @@ describe('computedPipe', () => {
     runInInjectionContext(injector, () => {
       const a = signal(1);
       const b = signal(2);
-      // computedPipe aggregates multiple signals into an array.
+
       const cp = computedPipe(a, b).map((values: [number, number]) => values[0] + values[1]);
       expect(cp()).toBe(3);
+
+      const cp2 = computedPipe(() => [a(), b()] as const).map((values: readonly [number, number]) => values[0] + values[1]);
+      expect(cp2()).toBe(3);
 
       a.set(3);
       b.set(4);
       expect(cp()).toBe(7);
+      expect(cp2()).toBe(7);
     });
   }));
 
