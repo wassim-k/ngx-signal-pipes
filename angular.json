@@ -29,7 +29,7 @@
         "test": {
           "builder": "@angular-builders/jest:run",
           "options": {
-            "tsConfig": "tsconfig.json",
+            "tsConfig": "tests/tsconfig.json",
             "polyfills": [
               "zone.js",
               "zone.js/testing"

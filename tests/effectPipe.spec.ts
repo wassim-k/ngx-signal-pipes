@@ -1,7 +1,6 @@
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { TestBed, fakeAsync, flush, tick } from '@angular/core/testing';
-import { effectPipe } from './effectPipe';
-import { SKIPPED } from './types';
+import { effectPipe, SKIPPED } from '../src';
 
 describe('effectPipe', () => {
   let injector: Injector;
@@ -79,6 +78,54 @@ describe('effectPipe', () => {
       // Update the source to trigger a new debounced effect.
       source.set(20);
       tick(1000);
+      expect(mockFn).toHaveBeenCalledWith(20);
+    });
+  }));
+
+  it('should pair each value with its previous value', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal(1);
+      const mockFn = jest.fn();
+
+      effectPipe(source)
+        .pair()
+        .run(value => mockFn(value));
+
+      flush();
+      expect(mockFn).toHaveBeenCalledWith([1, undefined]);
+
+      source.set(2);
+      flush();
+      expect(mockFn).toHaveBeenCalledWith([2, 1]);
+
+      source.set(3);
+      flush();
+      expect(mockFn).toHaveBeenCalledWith([3, 2]);
+
+      source.set(4);
+      flush();
+      expect(mockFn).toHaveBeenCalledWith([4, 3]);
+    });
+  }));
+
+  it('should support map pipe to map values', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal(1);
+      const mockFn = jest.fn();
+
+      effectPipe(source)
+        .map(value => value * 2)
+        .run(value => mockFn(value));
+
+      flush();
+      expect(mockFn).toHaveBeenCalledWith(2);
+
+      source.set(5);
+      flush();
+      expect(mockFn).toHaveBeenCalledWith(10);
+
+      source.set(10);
+      flush();
       expect(mockFn).toHaveBeenCalledWith(20);
     });
   }));

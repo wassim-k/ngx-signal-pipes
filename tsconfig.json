@@ -18,10 +18,7 @@
     "declaration": true,
     "declarationMap": true,
     "inlineSourceMap": true,
-    "inlineSources": true,
-    "types": [
-      "jest"
-    ]
+    "inlineSources": true
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

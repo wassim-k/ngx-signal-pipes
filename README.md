@@ -162,6 +162,17 @@ effectPipe(input)
   });
 ```
 
+#### map
+Map values using a mapping function.
+
+```typescript
+const input = signal(1);
+
+effectPipe(input)
+  .map(x => x * 2)
+  .run(value => console.log('Doubled value:', value));
+```
+
 #### skip
 Skip the first N effect runs.
 
@@ -185,6 +196,21 @@ effectPipe(input)
   .take(1)
   .run(value => {
     console.log('Initial value:', value);
+  });
+```
+
+#### pair
+Pair each value with its previous value.
+
+The first value will be paired with `undefined` (since there is no previous value).
+
+```typescript
+const counter = signal(0);
+
+effectPipe(counter)
+  .pair()
+  .run(([current, previous]) => {
+    console.log(`Counter changed from ${previous ?? 'undefined'} to ${current}`);
   });
 ```
 
@@ -308,6 +334,20 @@ It also calls `destroy()` on the `computedPipe` to cleanup any internal effects.
 ```typescript
 const input = signal(0);
 const takeFirst = computedPipe(input).take(1);
+```
+
+#### pair
+Pair each value with its previous value.
+
+The first value will be paired with `undefined` (since there is no previous value).
+
+```typescript
+const counter = signal(0);
+const counterWithPrevious = computedPipe(counter).pair();
+
+// Initial value: [0, undefined]
+counter.set(1); // Now: [1, 0]
+counter.set(2); // Now: [2, 1]
 ```
 
 #### debounce

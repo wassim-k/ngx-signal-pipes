@@ -1,7 +1,6 @@
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { fakeAsync, flushMicrotasks, TestBed, tick } from '@angular/core/testing';
-import { computedPipe } from './computedPipe';
-import { SKIPPED } from './types';
+import { computedPipe, SKIPPED } from '../src';
 
 describe('computedPipe', () => {
   let injector: Injector;
@@ -297,6 +296,56 @@ describe('computedPipe', () => {
       source.set(3);
       tick(10);
       expect(cp()).toBe(2);
+    });
+  }));
+
+  it('should pair each value with its previous value', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal(1);
+      const pairPipe = computedPipe(source).pair();
+
+      expect(pairPipe()).toEqual([1, undefined]);
+
+      source.set(2);
+      flushMicrotasks();
+      expect(pairPipe()).toEqual([2, 1]);
+
+      source.set(3);
+      flushMicrotasks();
+      expect(pairPipe()).toEqual([3, 2]);
+
+      source.set(4);
+      flushMicrotasks();
+      expect(pairPipe()).toEqual([4, 3]);
+    });
+  }));
+
+  it('should support pair with skipped values', fakeAsync(() => {
+    runInInjectionContext(injector, () => {
+      const source = signal(0);
+
+      const evenPairs = computedPipe(source)
+        .filter(value => value % 2 === 0)
+        .pair();
+
+      flushMicrotasks();
+      expect(evenPairs()).toEqual([0, undefined]);
+
+      source.set(1);
+      flushMicrotasks();
+      expect(evenPairs()).toEqual([0, undefined]);
+
+      source.set(2);
+      flushMicrotasks();
+      expect(evenPairs()).toEqual([2, 0]);
+
+      source.set(3);
+      flushMicrotasks();
+      expect(evenPairs()).toEqual([2, 0]);
+
+      source.set(4);
+      flushMicrotasks();
+      expect(evenPairs()).toEqual([4, 2]);
     });
   }));
 });

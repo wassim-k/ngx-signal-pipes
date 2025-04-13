@@ -21,3 +21,12 @@ export function createTakePipe<V>(n: number): (value: V) => V | typeof SKIPPED {
 export function createFilterPipe<V>(predicate: (value: V) => boolean): (value: V) => V | typeof SKIPPED {
   return (value: V) => predicate(value) ? value : SKIPPED;
 }
+
+export function createPairPipe<V>(): (value: V) => [V, V | undefined] {
+  let prev: V | undefined = undefined;
+  return (value: V) => {
+    const pair: [V, V | undefined] = [value, prev];
+    prev = value;
+    return pair;
+  };
+}
